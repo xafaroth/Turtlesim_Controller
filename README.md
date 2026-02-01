@@ -1,6 +1,6 @@
 # Turtle Controller Package
 
-A ROS2 package for controlling a turtlesim turtle with random Gaussian motion, wall detection, and dynamic pen color changes. This has examples of how to run ros2 subsriber, publisher, service and client. Additionally, also has example of user defined interfaces for server.
+A ROS2 package for controlling a turtlesim turtle with complete example of subscriber, publisher, server and client. In brief, it makes the turtlesim robot move with a random Gaussian motion, wall detection, and dynamic pen color changes.
 
 ## Overview
 
@@ -41,6 +41,39 @@ turtle_controller/
 ├── package.xml
 ├── setup.py
 └── README.md
+```
+
+## Custom Service Interface
+
+This package uses a custom service defined in the `my_robot_interfaces` package.
+
+### ToggleTurtleState Service
+
+**Location**: `my_robot_interfaces/srv/ToggleTurtleState.srv`
+
+**Definition**:
+```srv
+# Request
+bool turtle_switch    # true to activate turtle, false to deactivate
+
+---
+# Response  
+bool success          # true if toggle operation was successful
+string turtle_status  # Human-readable status message
+```
+
+**Example Responses**:
+- When activated: `success: true`, `turtle_status: "Turtle is activated"`
+- When deactivated: `success: true`, `turtle_status: "Turtle is deactivated"`
+
+**Usage Example**:
+```bash
+# Activate the turtle
+ros2 service call /turtle_state_toggle_service my_robot_interfaces/srv/ToggleTurtleState "{turtle_switch: true}"
+
+# Response:
+# success: true
+# turtle_status: 'Turtle is activated'
 ```
 
 ## Dependencies
@@ -122,6 +155,17 @@ ros2 service call /turtle_state_toggle_service my_robot_interfaces/srv/ToggleTur
 | Service | Service Type | Description |
 |---------|--------------|-------------|
 | `/turtle_state_toggle_service` | `my_robot_interfaces/srv/ToggleTurtleState` | Enable/disable turtle motion |
+
+**ToggleTurtleState Service Definition:**
+```
+# Request
+bool turtle_switch    # true to activate, false to deactivate
+
+---
+# Response
+bool success          # true if operation successful
+string turtle_status  # Status message (e.g., "Turtle is activated")
+```
 
 #### Client
 | Service | Service Type | Description |
@@ -274,13 +318,9 @@ f(x) = (1 / (σ√(2π))) * e^(-(x-μ)²/(2σ²))
 - [ ] Implement different motion patterns (Brownian, Lévy flight, etc.)
 - [ ] Add visualization of trajectory statistics
 
-## License
-
-[Specify your license here]
-
 ## Author
 
-[Your name/organization]
+Xafaroth
 
 ## Contributing
 
