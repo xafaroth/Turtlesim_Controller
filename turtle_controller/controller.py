@@ -23,6 +23,7 @@ class MyTurtleControllerNode(Node):
         self.is_active = True
 
     def poseSubscriber_cb(self, currentPose):
+        self.get_logger().info(f"Callback triggered! is_active={self.is_active}, x={currentPose.x:.2f}, y={currentPose.y:.2f}")
         if self.is_active:
             myMsg = Twist()
             if self.isReachingWall(currentPose):
