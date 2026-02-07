@@ -6,6 +6,7 @@ from turtlesim.msg import Pose
 import numpy as np
 from my_robot_interfaces.srv import ToggleTurtleState
 from turtlesim.srv import SetPen
+from .ros_param_fns import MOTION_GENERATORS, gaussian_motion, PEN_COLORS
 
 uint8_ = lambda x: max(0, min(255, x)) 
 
@@ -21,6 +22,11 @@ class MyTurtleControllerNode(Node):
         self.mySetPenClient = self.create_client(SetPen, '/turtle1/set_pen')    # client to change pen properties
         self.prevPose = Pose()
         self.is_active = True
+        # parameters
+        self.declare_parameter("motion_pattern", "Gaussian")
+        self.declare_parameter("motion_std", 0.5)
+        self.declare_parameter("primary_color", "Blue")
+        self.declare_parameter("secondary_color", "Red")
 
     def poseSubscriber_cb(self, currentPose):
         if self.is_active:
@@ -33,15 +39,35 @@ class MyTurtleControllerNode(Node):
             else:
                 myMsg.linear.x = np.random.normal(1.0, 0.3)  # Mean=1.0, StdDev=0.3
                 myMsg.linear.y = np.random.normal(1.0, 0.3)  # Mean=1.0, StdDev=0.3
-                myMsg.angular.z = np.random.randn() * 0.5   
+                generator = MOTION_GENERATORS.get(self.get_parameter("motion_pattern").value, gaussian_motion)
+                myMsg.angular.z = generator(currentPose.angular_velocity, self.get_parameter("motion_std").value)
                 self.cmdVel_pub.publish(myMsg)
             if self.isReachingWall(currentPose) and not self.isReachingWall(self.prevPose):
-                self.get_logger().info('changing pen color to red')
-                self.setPenService_call(255, 0, 0, 2, 0)
+                color = self.get_parameter("primary_color").value
+                self.get_logger().info('changing pen color to '+color)
+                self.setPenService_call(*PEN_COLORS.get(color, (128, 0, 128)), 2, 0)
             if self.isReachingWall(self.prevPose) and not self.isReachingWall(currentPose):
-                self.get_logger().info('changing pen color to blue')
-                self.setPenService_call(0, 255, 0, 1, 0)
+                color = self.get_parameter("secondary_color").value
+                self.get_logger().info('changing pen color to '+color)
+                self.setPenService_call(*PEN_COLORS.get(color, (0, 255, 255)), 1, 0)
             self.prevPose = currentPose
+
+    # def get_angularZ_motion(self, angular_z):
+    #     dist = self.get_parameter("motion_pattern").value
+    #     std = self.get_parameter("motion_std").value
+    #     if dist is "Uniform":
+    #         return np.random.uniform(-3.0, 3.0)
+    #     elif dist is "Cauchy":
+    #         return np.random.standard_cauchy() * std
+    #     elif dist is "Poission":
+    #         np.random.choice([-1.5, -.5, 0, .5, 1.5]) * std
+    #     elif dist is "Exponential":
+    #         np.random.exponential(std) * np.random.choice(-1, 1)
+    #     elif dist is "Brownian":
+    #         angular_z += np.random.randn() * std
+    #         return np.clip(angular_z, -3.0, 3.0)
+    #     else:
+    #         return np.random.randn() * std        
 
     def isReachingWall(self, pose):
         # if np.abs(poseMsg.x - 5.5)>=5.0 or np.abs(poseMsg.y - 5.5)>=5.0:

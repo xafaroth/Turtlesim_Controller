@@ -1,0 +1,22 @@
+# In your repository root
+nano .gitignore
+```
+
+Add these lines:
+```
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+
+# ROS2 specific
+install/
+build/
+log/
