@@ -1,333 +1,390 @@
 # Turtle Controller Package
 
-A ROS2 package for controlling a turtlesim turtle with complete example of subscriber, publisher, server and client. In brief, it makes the turtlesim robot move with a random Gaussian motion, wall detection, and dynamic pen color changes.
+**A Complete ROS2 Communication Example**
 
-## Overview
+This package demonstrates **all major ROS2 communication patterns** in a single practical application:
 
-This package provides an autonomous turtle controller that:
-- Moves the turtle with random Gaussian-distributed velocities
-- Detects wall proximity and performs avoidance maneuvers
-- Changes pen color when approaching and leaving walls
-- Can be toggled on/off via a custom service
+1. **Publisher** - Send velocity commands
+2. **Subscriber** - Receive pose updates
+3. **Service Server** - Provide toggle service (with custom interface)
+4. **Service Client** - Call SetPen service
+5. **Action Server** - Execute turn commands with feedback
 
-## Features
+Controls a turtlesim turtle with autonomous random motion, wall detection, dynamic pen colors, and controllable turn actions.
 
-### 1. **Random Gaussian Motion**
-The turtle moves with velocities sampled from Gaussian (normal) distributions:
-- **Linear velocity**: Gaussian distribution with configurable mean and standard deviation
-- **Angular velocity**: Gaussian distribution for smooth, natural turning behavior
-- Velocities are clipped to safe operational ranges
+---
 
-### 2. **Wall Detection & Avoidance**
-- Detects when the turtle approaches arena boundaries (x: 1-10, y: 1-10)
-- Automatically adjusts motion to turn away from walls
-- Provides visual feedback via pen color changes
+## 📚 ROS2 Communication Patterns
 
-### 3. **Dynamic Pen Control**
-- **Blue pen** (RGB: 0, 255, 0): Normal navigation
-- **Red pen** (RGB: 255, 0, 0): Wall proximity detected
-- Pen width increases when near walls for visual emphasis
+### 1. **Publisher** - Controlling Turtle Movement
 
-### 4. **Toggle Service**
-Custom service to enable/disable turtle motion without stopping the node
+**Implementation**:
+```python
+self.cmdVel_pub = self.create_publisher(Twist, "/turtle1/cmd_vel", 10)
 
-## Package Structure
-
-```
-turtle_controller/
-├── turtle_controller/
-│   ├── __init__.py
-│   └── controller.py          # Main controller node
-├── package.xml
-├── setup.py
-└── README.md
+myMsg = Twist()
+myMsg.linear.x = 1.0
+myMsg.angular.z = 0.5
+self.cmdVel_pub.publish(myMsg)
 ```
 
-## Custom Service Interface
+- **Topic**: `/turtle1/cmd_vel`
+- **Type**: `geometry_msgs/msg/Twist`
+- **Purpose**: Controls turtle's linear and angular velocities
 
-This package uses a custom service defined in the `my_robot_interfaces` package.
+---
 
-### ToggleTurtleState Service
+### 2. **Subscriber** - Receiving Turtle Position
+
+**Implementation**:
+```python
+self.pose_sub = self.create_subscription(Pose, "/turtle1/pose", self.poseSubscriber_cb, 10)
+
+def poseSubscriber_cb(self, currentPose):
+    # Access: currentPose.x, currentPose.y, currentPose.theta
+    if self.isReachingWall(currentPose):
+        # React to position
+        pass
+```
+
+- **Topic**: `/turtle1/pose`
+- **Type**: `turtlesim/msg/Pose`
+- **Purpose**: Monitor turtle position for wall detection
+
+---
+
+### 3. **Service Server** - Toggle Turtle State (Custom Interface)
+
+**Implementation**:
+```python
+self.turtle_toggle_srv = self.create_service(
+    ToggleTurtleState, 
+    "turtle_state_toggle_service", 
+    self.turtleToggleService_cb
+)
+
+def turtleToggleService_cb(self, request, response):
+    self.is_active = request.turtle_switch
+    response.success = True
+    response.turtle_status = 'Turtle is activated' if request.turtle_switch else 'Turtle is deactivated'
+    return response
+```
+
+- **Service**: `/turtle_state_toggle_service`
+- **Type**: `my_robot_interfaces/srv/ToggleTurtleState` (**Custom Interface**)
+- **Purpose**: Enable/disable turtle motion remotely
+
+#### Custom Service Interface: ToggleTurtleState
 
 **Location**: `my_robot_interfaces/srv/ToggleTurtleState.srv`
 
 **Definition**:
 ```srv
 # Request
-bool turtle_switch    # true to activate turtle, false to deactivate
-
+bool turtle_switch    # true = activate, false = deactivate
 ---
-# Response  
-bool success          # true if toggle operation was successful
-string turtle_status  # Human-readable status message
+# Response
+bool success          # true if operation succeeded
+string turtle_status  # "Turtle is activated" or "Turtle is deactivated"
 ```
-
-**Example Responses**:
-- When activated: `success: true`, `turtle_status: "Turtle is activated"`
-- When deactivated: `success: true`, `turtle_status: "Turtle is deactivated"`
 
 **Usage Example**:
 ```bash
 # Activate the turtle
 ros2 service call /turtle_state_toggle_service my_robot_interfaces/srv/ToggleTurtleState "{turtle_switch: true}"
 
-# Response:
-# success: true
-# turtle_status: 'Turtle is activated'
-```
-
-## Dependencies
-
-### ROS2 Packages
-- `rclpy` - ROS2 Python client library
-- `geometry_msgs` - Twist messages for velocity commands
-- `turtlesim` - Turtle simulation and Pose/SetPen services
-- `my_robot_interfaces` - Custom service definitions
-
-### Python Packages
-- `numpy` - For Gaussian random number generation
-
-## Installation
-
-1. **Clone the repository** into your ROS2 workspace:
-```bash
-cd ~/ros2_ws/src
-git clone <repository-url> turtle_controller
-```
-
-2. **Install dependencies**:
-```bash
-cd ~/ros2_ws
-rosdep install --from-paths src --ignore-src -r -y
-```
-
-3. **Build the package**:
-```bash
-cd ~/ros2_ws
-colcon build --packages-select turtle_controller
-```
-
-4. **Source the workspace**:
-```bash
-source ~/ros2_ws/install/setup.bash
-```
-
-## Usage
-
-### 1. Start Turtlesim
-```bash
-ros2 run turtlesim turtlesim_node
-```
-
-### 2. Run the Turtle Controller
-```bash
-ros2 run turtle_controller turtle_ctrl
-```
-
-### 3. Toggle Turtle State (Optional)
-In a new terminal, use the service to activate the turtle:
-```bash
-# Activate turtle
-ros2 service call /turtle_state_toggle_service my_robot_interfaces/srv/ToggleTurtleState "{turtle_switch: true}"
-
-# Deactivate turtle
+# Deactivate the turtle
 ros2 service call /turtle_state_toggle_service my_robot_interfaces/srv/ToggleTurtleState "{turtle_switch: false}"
 ```
 
-## Node Details
+---
 
-### Node Name
-`turtle_controller`
+### 4. **Service Client** - Changing Pen Properties
 
-### Published Topics
-| Topic | Message Type | Description |
-|-------|--------------|-------------|
-| `/turtle1/cmd_vel` | `geometry_msgs/msg/Twist` | Velocity commands for the turtle |
+**Implementation**:
+```python
+self.mySetPenClient = self.create_client(SetPen, '/turtle1/set_pen')
 
-### Subscribed Topics
-| Topic | Message Type | Description |
-|-------|--------------|-------------|
-| `/turtle1/pose` | `turtlesim/msg/Pose` | Current pose of the turtle |
+def setPenService_call(self, r, g, b, width, penOff):
+    while not self.mySetPenClient.wait_for_service(1.0):
+        self.get_logger().info('Waiting for service.')
+    
+    request = SetPen.Request()
+    request.r, request.g, request.b = r, g, b
+    request.width, request.off = width, penOff
+    
+    future = self.mySetPenClient.call_async(request)
+    future.add_done_callback(self.setPenClient_cb)
 
-### Services
-
-#### Server
-| Service | Service Type | Description |
-|---------|--------------|-------------|
-| `/turtle_state_toggle_service` | `my_robot_interfaces/srv/ToggleTurtleState` | Enable/disable turtle motion |
-
-**ToggleTurtleState Service Definition:**
+def setPenClient_cb(self, future):
+    response = future.result()
 ```
-# Request
-bool turtle_switch    # true to activate, false to deactivate
+
+- **Service**: `/turtle1/set_pen`
+- **Type**: `turtlesim/srv/SetPen`
+- **Purpose**: Change pen color based on turtle behavior
+  - **Red pen** (255, 0, 0): Approaching walls
+  - **Blue pen** (0, 255, 0): Normal navigation
 
 ---
-# Response
-bool success          # true if operation successful
-string turtle_status  # Status message (e.g., "Turtle is activated")
-```
 
-#### Client
-| Service | Service Type | Description |
-|---------|--------------|-------------|
-| `/turtle1/set_pen` | `turtlesim/srv/SetPen` | Change pen color and properties |
+### 5. **Action Server** - Turn Turtle with Feedback (Custom Interface)
 
-### Parameters
-
-The controller uses the following motion parameters (can be modified in code):
-
+**Implementation**:
 ```python
-# Gaussian motion parameters
-mean_linear = 1.0        # Mean linear velocity (m/s)
-std_linear = 0.3         # Standard deviation for linear velocity
-mean_angular = 0.0       # Mean angular velocity (rad/s)
-std_angular = 0.5        # Standard deviation for angular velocity
+from rclpy.action import ActionServer, GoalResponse, CancelResponse
+from rclpy.callback_groups import ReentrantCallbackGroup
 
-# Wall detection thresholds
-wall_threshold_min = 1.0  # Minimum x/y position
-wall_threshold_max = 10.0 # Maximum x/y position
+self.turn_turtle_srv = ActionServer(
+    self, 
+    TurnTurtle, 
+    "turn_turtle_srv",
+    goal_callback=self.goal_cb,
+    execute_callback=self.execute_cb,
+    cancel_callback=self.cancel_cb,
+    callback_group=ReentrantCallbackGroup()
+)
 
-# Wall avoidance behavior
-wall_linear_vel = 1.0     # Linear velocity when avoiding wall
-wall_angular_vel = 1.5    # Angular velocity when avoiding wall
+def goal_cb(self, goal_request):
+    """Decide whether to accept or reject the goal"""
+    if not self.is_active:
+        return GoalResponse.REJECT
+    return GoalResponse.ACCEPT
+
+def execute_cb(self, goal_handle):
+    """Execute the turn action with feedback"""
+    self.action_active = True
+    deg_to_turn = goal_handle.request.turn_degree
+    
+    # Set action command (published by control_loop)
+    self.action_cmdVel.angular.z = 1.57  # rad/s
+    
+    # Provide feedback during execution
+    feedback = TurnTurtle.Feedback()
+    while not_complete:
+        feedback.progress = calculate_progress()
+        goal_handle.publish_feedback(feedback)
+    
+    self.action_active = False
+    goal_handle.succeed()
+    return result
+
+def cancel_cb(self, goal_handle):
+    """Handle cancellation requests"""
+    return CancelResponse.ACCEPT
 ```
 
-## How It Works
+- **Action**: `/turn_turtle_srv`
+- **Type**: `my_robot_interfaces/action/TurnTurtle` (**Custom Interface**)
+- **Purpose**: Turn turtle by specified degrees with real-time feedback
 
-### Motion Generation
-The controller generates motion using NumPy's Gaussian random number generator:
+#### Custom Action Interface: TurnTurtle
 
-```python
-# Generate Gaussian-distributed velocities
-linear_vel = np.random.normal(mean_linear, std_linear)
-angular_vel = np.random.normal(mean_angular, std_angular)
+**Location**: `my_robot_interfaces/action/TurnTurtle.action`
 
-# Clip to safe ranges
-linear_vel = np.clip(linear_vel, 0.1, 2.0)
-angular_vel = np.clip(angular_vel, -2.0, 2.0)
+**Definition**:
+```
+# Goal
+float32 turn_degree    # Degrees to turn (positive = counter-clockwise)
+---
+# Result
+float32 heading        # Final orientation in radians
+---
+# Feedback
+float32 current_angle   # Current angle in degrees
+float32 remaining_angle # Remaining angle to turn
+float32 progress        # Percentage complete (0-100)
 ```
 
-### State Machine
-1. **Idle State**: `is_active = False`
-   - Turtle does not move
-   - Waiting for activation via service
+**Why Actions?**
+Actions are ideal for **long-running tasks** that need:
+- **Feedback**: Progress updates during execution
+- **Cancellation**: Ability to stop mid-execution
+- **Result**: Final outcome after completion
 
-2. **Active State**: `is_active = True`
-   - Normal navigation with Gaussian random motion
-   - Wall detection active
-   - Pen color changes based on proximity to walls
+Unlike services (which block until complete), actions provide real-time status updates.
 
-### Wall Detection Algorithm
-```python
-def isReachingWall(self, pose):
-    if pose.x > 10 or pose.x < 1 or pose.y > 10 or pose.y < 1:
-        return True
-    return False
+**Usage Examples**:
+```bash
+# Turn 180 degrees with feedback
+ros2 action send_goal /turn_turtle_srv my_robot_interfaces/action/TurnTurtle "{turn_degree: 180.0}" --feedback
+
+# Turn 90 degrees counter-clockwise
+ros2 action send_goal /turn_turtle_srv my_robot_interfaces/action/TurnTurtle "{turn_degree: 90.0}" --feedback
+
+# Turn 90 degrees clockwise (negative)
+ros2 action send_goal /turn_turtle_srv my_robot_interfaces/action/TurnTurtle "{turn_degree: -90.0}" --feedback
+
+# Cancel during execution (Ctrl+C while action is running)
 ```
 
-### Pen Color Logic
-- **Entering wall zone**: Previous pose was safe AND current pose is near wall → Red pen
-- **Leaving wall zone**: Previous pose was near wall AND current pose is safe → Blue pen
+**Key Features**:
+- **Goal Callback**: Validates and accepts/rejects goals
+- **Execute Callback**: Performs the turn with feedback loop
+- **Cancel Callback**: Handles cancellation requests
+- **Non-blocking**: Uses `MultiThreadedExecutor` for concurrent execution
+- **Priority System**: Action commands override normal motion
 
-## Customization
+---
 
-### Adjust Gaussian Parameters
-Modify the motion distribution in `controller.py`:
+## 📦 Installation
 
-```python
-# More conservative motion (lower variance)
-linear_vel = np.random.normal(0.8, 0.2)
-angular_vel = np.random.normal(0.0, 0.3)
+```bash
+# Clone repository
+cd ~/ros2_ws/src
+git clone <repository-url> turtle_controller
 
-# More aggressive motion (higher variance)
-linear_vel = np.random.normal(1.5, 0.5)
-angular_vel = np.random.normal(0.0, 0.8)
+# Install dependencies
+cd ~/ros2_ws
+rosdep install --from-paths src --ignore-src -r -y
+
+# Build (important: build interfaces first!)
+colcon build --packages-select my_robot_interfaces
+colcon build --packages-select turtle_controller
+source install/setup.bash
 ```
 
-### Change Pen Colors
-Modify the RGB values in the `call_set_pen_server()` calls:
+---
 
-```python
-# Change red to orange (255, 165, 0)
-self.call_set_pen_server(255, 165, 0, 2, 0)
+## 🚀 Quick Start
 
-# Change blue to green (0, 255, 0)
-self.call_set_pen_server(0, 255, 0, 1, 0)
+```bash
+# Terminal 1: Start turtlesim
+ros2 run turtlesim turtlesim_node
+
+# Terminal 2: Run controller
+ros2 run turtle_controller turtle_ctrl
+
+# Terminal 3: Test service (optional)
+ros2 service call /turtle_state_toggle_service my_robot_interfaces/srv/ToggleTurtleState "{turtle_switch: true}"
+
+# Terminal 4: Test action
+ros2 action send_goal /turn_turtle_srv my_robot_interfaces/action/TurnTurtle "{turn_degree: 180.0}" --feedback
 ```
 
-### Adjust Wall Thresholds
-Modify the boundary conditions in `isReachingWall()`:
+---
 
-```python
-# Tighter boundaries (more cautious)
-if pose.x > 9 or pose.x < 2 or pose.y > 9 or pose.y < 2:
-    return True
+## 🧪 Testing Each Pattern
 
-# Looser boundaries (less cautious)
-if pose.x > 10.5 or pose.x < 0.5 or pose.y > 10.5 or pose.y < 0.5:
-    return True
+**Publisher**: Monitor velocity commands
+```bash
+ros2 topic echo /turtle1/cmd_vel
 ```
 
-## Troubleshooting
-
-### Turtle doesn't move
-- Ensure the turtle is activated: Call the toggle service with `turtle_switch: true`
-- Check that turtlesim_node is running
-- Verify topics are connected: `ros2 topic list`
-
-### Service not found
-- Build and source the `my_robot_interfaces` package first
-- Verify service is available: `ros2 service list`
-
-### Pen color doesn't change
-- Check that `/turtle1/set_pen` service is available
-- Verify log messages show "changing pen color to..."
-- Ensure turtlesim window is visible
-
-### Erratic motion
-- Adjust Gaussian distribution parameters (reduce standard deviation)
-- Increase velocity clipping constraints
-- Check pose subscription frequency
-
-## Mathematical Background
-
-### Gaussian Distribution
-The motion uses the normal distribution: **N(μ, σ²)**
-
-Where:
-- **μ (mu)**: Mean value (center of distribution)
-- **σ (sigma)**: Standard deviation (spread of distribution)
-
-**Probability Density Function**:
-```
-f(x) = (1 / (σ√(2π))) * e^(-(x-μ)²/(2σ²))
+**Subscriber**: Monitor pose updates
+```bash
+ros2 topic echo /turtle1/pose
 ```
 
-**Properties**:
-- ~68% of values within ±1σ of mean
-- ~95% of values within ±2σ of mean
-- Produces smooth, natural-looking motion
+**Service Server**: Call the toggle service
+```bash
+ros2 service call /turtle_state_toggle_service my_robot_interfaces/srv/ToggleTurtleState "{turtle_switch: true}"
+```
 
-## Future Enhancements
+**Service Client**: Watch pen color change automatically when turtle approaches walls
 
-- [ ] Add obstacle detection using laser scan
-- [ ] Implement path planning algorithms
-- [ ] Add multiple turtle coordination
-- [ ] Create configurable parameters via ROS2 parameters
-- [ ] Add dynamic reconfigure for real-time tuning
-- [ ] Implement different motion patterns (Brownian, Lévy flight, etc.)
-- [ ] Add visualization of trajectory statistics
+**Action Server**: Send turn command
+```bash
+ros2 action send_goal /turn_turtle_srv my_robot_interfaces/action/TurnTurtle "{turn_degree: 180.0}" --feedback
+```
 
-## Author
+---
+
+## 🎨 Application Features
+
+- **Random Motion**: Smooth movement with configurable motion patterns (Gaussian, Cauchy, etc.)
+- **Wall Detection**: Boundaries at x:[1,10], y:[1,10]
+- **Wall Avoidance**: Automatic turning when approaching walls
+- **Dynamic Pen Colors**: Visual feedback (blue=normal, red=wall proximity)
+- **Toggle Control**: Enable/disable motion via service
+- **Precise Turns**: Execute specific angle rotations via action server
+- **Real-time Feedback**: Progress updates during action execution
+
+---
+
+## 🏗️ Architecture: Action vs Normal Motion
+
+### **Control Flow with Action Priority**
+
+```
+┌─────────────────────────────────────────────────────────┐
+│         MultiThreadedExecutor                           │
+├─────────────────────────────────────────────────────────┤
+│                                                         │
+│  Thread 1: control_loop() (0.1s timer)                  │
+│  ┌────────────────────────────────────────────┐         │
+│  │ if action_active:                          │         │
+│  │     publish(action_cmdVel)  ◄──────────────┼────┐    │
+│  │ else:                                      │    │    │
+│  │     publish(normal_cmdVel)                 │    │    │
+│  └────────────────────────────────────────────┘    │    │
+│                                                    │    │
+│  Thread 2: execute_cb() (action server)            │    │
+│  ┌────────────────────────────────────────────┐    │    │
+│  │ action_active = True                       │    │    │
+│  │ action_cmdVel.angular.z = 1.57 ────────────┼────┘    │
+│  │ while turning:                             │         │
+│  │     publish feedback                       │         │
+│  │     check cancellation                     │         │
+│  │ action_active = False                      │         │
+│  └────────────────────────────────────────────┘         │
+└─────────────────────────────────────────────────────────┘
+```
+
+**Key Points**:
+- **Single publishing point**: Only `control_loop()` publishes to `/cmd_vel`
+- **Action priority**: When `action_active = True`, action commands override normal motion
+- **Seamless transition**: Automatically returns to normal motion when action completes
+- **Concurrent execution**: Action feedback runs while control loop continues
+
+---
+
+## 🐛 Troubleshooting
+
+**Turtle doesn't move**: Activate it via service
+```bash
+ros2 service call /turtle_state_toggle_service my_robot_interfaces/srv/ToggleTurtleState "{turtle_switch: true}"
+```
+
+**Action/Service not found**: Rebuild custom interface package
+```bash
+cd ~/ros2_ws
+rm -rf build/my_robot_interfaces install/my_robot_interfaces
+colcon build --packages-select my_robot_interfaces
+source install/setup.bash
+```
+
+**Action feedback assertion error**: Make sure action definition uses `float32` types and workspace is sourced
+```bash
+ros2 interface show my_robot_interfaces/action/TurnTurtle  # Verify types
+source ~/ros2_ws/install/setup.bash  # Source in all terminals
+```
+
+**Topics/services missing**: Check running nodes
+```bash
+ros2 node list
+ros2 topic list
+ros2 service list
+ros2 action list
+```
+
+---
+
+## 📊 Communication Pattern Summary
+
+| Pattern | Name | Topic/Service/Action | Type | Purpose |
+|---------|------|---------------------|------|---------|
+| Publisher | Velocity Control | `/turtle1/cmd_vel` | `Twist` | Send movement commands |
+| Subscriber | Pose Monitor | `/turtle1/pose` | `Pose` | Receive position updates |
+| Service Server | Toggle Control | `/turtle_state_toggle_service` | `ToggleTurtleState` | Enable/disable motion |
+| Service Client | Pen Control | `/turtle1/set_pen` | `SetPen` | Change pen properties |
+| Action Server | Turn Command | `/turn_turtle_srv` | `TurnTurtle` | Execute turns with feedback |
+
+---
+## 👨‍💻 Author
 
 Xafaroth
 
-## Contributing
+## 🤝 Contributing
 
-Contributions are welcome! Please submit pull requests or open issues for bugs and feature requests.
-
-## Acknowledgments
-
-- ROS2 Tutorials and Documentation
-- Turtlesim package maintainers
-- NumPy community
+Educational contributions welcome! This package is designed as a learning resource for ROS2 communication patterns.
